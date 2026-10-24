@@ -1,0 +1,95 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>产品资料工作台</title>
+<style>:root{font-family:system-ui,'Microsoft YaHei',sans-serif;color:#18324a;background:#f2f5f8}body{max-width:1120px;margin:32px auto;padding:0 20px}h1{font-size:28px;margin-bottom:8px}h2{font-size:20px}p{line-height:1.7}.muted{color:#587084}.card{background:white;border:1px solid #dce5ed;border-radius:14px;padding:24px;margin:20px 0;box-shadow:0 3px 12px #17324a06}input,select,textarea,button{font:inherit;border:1px solid #cbd8e4;border-radius:7px;padding:10px;box-sizing:border-box}input[type=text],textarea{width:100%}button{background:#146b8d;color:white;border:0;cursor:pointer;margin:6px 8px 6px 0}button.secondary{background:#e6eef4;color:#24445c}button:disabled{opacity:.5;cursor:wait}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.file{display:flex;gap:12px;margin:12px 0;align-items:center}.file input{flex:1;min-width:0}.badge{display:inline-block;background:#edf4f7;padding:4px 9px;border-radius:5px;font-size:13px}.rule{border-top:1px solid #e4ebf1;padding:18px 0}.rule h3{margin:4px 0}blockquote{border-left:3px solid #8db7c7;padding-left:15px;margin-left:0;line-height:1.8;white-space:pre-wrap}.error{color:#ad332e}#progress,#answer{white-space:pre-wrap;line-height:1.8}label{display:block;margin-bottom:6px}a{color:#146b8d}summary{cursor:pointer}table{border-collapse:collapse;width:100%;font-size:14px}td,th{padding:10px;border-bottom:1px solid #e4ebf1;text-align:left}@media(max-width:720px){.grid{grid-template-columns:1fr}.file{flex-wrap:wrap}}</style><body data-library-admin="false">
+<h1>产品资料工作台</h1><p class="muted">上传原件后自动准备表格、检索、规则、案例与本人资料包；个人计算按已接通目标提供。</p>
+<div class="card"><h2>1. 添加产品资料</h2><div class="grid"><div><label for="name">产品名称</label><input id="name" type="text" placeholder="已知原件可自动识别；新产品请填写"></div><div><label for="company">保险公司</label><input id="company" type="text" placeholder="新产品填写原件载明的公司"></div><div><label for="version">版本说明（可选）</label><input id="version" type="text" placeholder="例如2026版"></div></div><div id="files"></div><button id="add" class="secondary">增加资料</button><p class="muted">至少提供条款或说明书；费率和现金价值表按实际情况添加。文件保存在当前使用者的数据空间，不自动公开。</p><button id="start">上传并处理</button><div id="message" role="status"></div></div>
+<div class="card"><h2>2. 处理进度</h2><div id="history"></div><div id="progress" aria-live="polite">尚未选择处理任务。</div><button id="retry" class="secondary" hidden>重试失败步骤</button></div>
+<div id="result" class="card" hidden><h2 id="productTitle"></h2><div id="capabilities"></div><div id="documents"></div><h2>产品利益目录</h2><p class="muted">已发现的利益、费用和账户项目；未注册执行的项目仅供查看原文。</p><div id="benefits"></div><h2>演示项目与原文证据</h2><p class="muted">下列项目分别标明计算、查表、固定参考及适用条件；默认展示口径会单独标记。</p><div id="rules"></div><details><summary>表头、计价单位与脚注原文</summary><div id="facts"></div></details><details><summary>提取覆盖与处理限制</summary><pre id="coverage" style="white-space:pre-wrap"></pre></details></div>
+<div id="askCard" class="card" hidden><h2>3. 分析本次资料</h2><textarea id="question" rows="3" placeholder="例如：身故保险金如何确定？有哪些年龄和交费条件？"></textarea><button id="ask">基于原文回答</button><div id="answer"></div></div>
+<script>
+const $=id=>document.getElementById(id), labels={terms:'保险条款',brochure:'产品说明书',premium_rate:'费率/基本保险金额表',cash_value:'现金价值表',other:'其他资料'},types={unit_conversion:'计价与单位',amount_growth:'金额增长',conditional_benefit:'条件给付',table_lookup:'表格查询',limit_ratio:'比例与限额',time_condition:'时间条件',illustration:'演示案例',disclosure:'限制与说明'};let current=null,timer=null,bundleId=null;
+async function api(path,body){const r=await fetch('/v1/product-ingestion'+path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(d.detail||'请求失败');return d}
+function text(tag,value,parent){const e=document.createElement(tag);e.textContent=value;parent.append(e);return e}
+function fileRow(kind){const row=document.createElement('div');row.className='file';const s=document.createElement('select');for(const [k,v] of Object.entries(labels)){const o=document.createElement('option');o.value=k;o.textContent=v;s.append(o)}s.value=kind;const f=document.createElement('input');f.type='file';f.accept='.pdf,application/pdf';const remove=document.createElement('button');remove.className='secondary';remove.textContent='移除';remove.onclick=()=>row.remove();row.append(s,f,remove);$('files').append(row)}
+for(const kind of ['terms','brochure','premium_rate','cash_value'])fileRow(kind);$('add').onclick=()=>fileRow('other');
+function error(e){$('message').className='error';$('message').textContent=e.message||e}
+$('start').onclick=async()=>{const rows=[...$('files').children].filter(r=>r.querySelector('input').files.length);if(!rows.length)return error(Error('请选择PDF资料'));$('start').disabled=true;$('message').className='';$('message').textContent='正在上传…';try{const assets=[];for(const row of rows){const f=row.querySelector('input').files[0],r=await fetch('/v1/product-ingestion/uploads',{method:'POST',headers:{'Content-Type':'application/pdf'},body:f}),d=await r.json();if(!r.ok)throw Error(d.detail||'上传失败');assets.push({asset_id:d.asset_id,document_type:row.querySelector('select').value})}const j=await api('/jobs',{request_id:crypto.randomUUID(),assets,product_name:$('name').value,company:$('company').value,version_label:$('version').value});$('message').textContent='任务已提交，处理进度会自动更新。';await watch(j.job_id)}catch(e){error(e)}finally{$('start').disabled=false}};
+const stages={queued:'等待处理',starting:'检查任务',identity:'核验产品身份',parsing:'本地解析PDF',numeric_text_v1:'保留完整表格与残表片段',generic_mapping_v1:'历史结构映射',generic_mapping_v2:'映射行列头与续表结构',chunking:'整理条款与表头证据',indexing:'构建本次资料检索索引',rule_candidates:'混合检索规则证据',rule_extraction:'提取并校验规则',completed:'处理完成',failed:'处理失败'};
+Object.assign(stages,{table_preparation:'整理原文表格',table_import:'保存原文表格',search_index:'建立检索索引',example_preparation:'整理官方案例',rule_preparation:'提取并核验规则',execution_preparation:'准备个人执行',bundle_registration:'登记本人资料包'});
+const stageOrder=['identity','parsing','numeric_text_v1','generic_mapping_v2','table_preparation','table_import','search_index','example_preparation','rule_preparation','execution_preparation','bundle_registration'];
+function stageKey(name){return Object.keys(stages).find(k=>name===k||name.startsWith(k+'_'))||name}
+function stageLabel(name){return stages[stageKey(name)]||'准备资料'}
+function taskLabel(job){return job.state==='partial'?'部分准备完成':stageLabel(job.stage)}
+async function history(){try{const d=await api('/jobs');$('history').replaceChildren();for(const j of d.jobs){const b=document.createElement('button');b.className='secondary';b.textContent=(j.result?.identity.product_name||'资料任务')+' · '+taskLabel(j);b.onclick=()=>watch(j.job_id);$('history').append(b)}}catch(e){error(e)}}
+async function watch(id){if(timer)clearTimeout(timer);current=id;const j=await api('/jobs/'+encodeURIComponent(id));$('progress').textContent=(stages[j.stage]||j.stage)+'\n已完成：'+[...j.completed_steps].sort((a,b)=>stageOrder.indexOf(stageKey(a))-stageOrder.indexOf(stageKey(b))).map(stageLabel).join(' → ')+(j.error_code?'\n原因：'+j.error_code:'');$('retry').hidden=!['failed','partial'].includes(j.state);if(['ready','partial'].includes(j.state)){bundleId=j.result.bundle_id;await render();await history()}else if(j.state!=='failed'){timer=setTimeout(()=>watch(id).catch(error),1500)}}
+$('retry').onclick=async()=>{try{await api('/jobs/'+encodeURIComponent(current)+'/retry',{});await watch(current)}catch(e){error(e)}};
+function sourceLink(parent,docid,page,label='查看原件'){const a=document.createElement('a');a.textContent=label+' · 第'+page+'页';a.href='/v1/product-ingestion/bundles/'+encodeURIComponent(bundleId)+'/documents/'+encodeURIComponent(docid)+'/pdf#page='+page;a.target='_blank';a.rel='noopener';parent.append(a)}
+async function render(){
+ libraryControls.hidden=document.body.dataset.libraryAdmin!=='true';
+ const b=await api('/bundles/'+encodeURIComponent(bundleId));
+ if(b.scope==='current_source_business'){
+  $('result').hidden=false;$('productTitle').textContent=b.identity.product_name;$('capabilities').replaceChildren();$('documents').replaceChildren();$('benefits').replaceChildren();$('rules').replaceChildren();$('facts').replaceChildren();
+  const c=b.capabilities;
+  text('p','原文问答：'+(c.document_qa.status==='available'?'已准备':'未准备')+'；原文表格：'+(c.source_tables.table_count||0)+' 张；获取规则：'+(c.rule_extraction.status==='prepared'?'已处理 '+c.rule_extraction.target_count+' 个目标，失败 '+c.rule_extraction.failed_count+' 个':'未准备')+'；原案例：'+(c.source_examples.case_count||0)+' 组。',$('capabilities'));
+  text('p',c.illustration.status==='not_applicable'?'个人执行：当前资料可供原文问答，暂无适用的个人测算项目。':'个人执行：'+(c.illustration.ready_count||0)+' 项可用，'+(c.illustration.blocked_count||0)+' 项待补依据；官方原例单独展示。',$('capabilities'));renderCurrentForm(b);
+  $('coverage').textContent=JSON.stringify(c,null,2);
+  await renderCurrentReadings(b);
+  for(const d of b.documents){const p=text('p',labels[d.document_type]+'　',$('documents'));sourceLink(p,d.document_version_id,1,'原PDF')}
+  $('askCard').hidden=b.capabilities.document_qa.status!=='available';return b;
+ }
+ throw Error("该资料包已退役，请选择当前资料包");
+}
+$('ask').onclick=async()=>{$('ask').disabled=true;$('answer').textContent='正在检索原文…';try{const r=await api('/bundles/'+encodeURIComponent(bundleId)+'/analyze',{question:$('question').value});$('answer').replaceChildren();text('p',r.text,$('answer'));for(const q of r.claims)sourceLink($('answer'),q.document_version_id,q.page_start)}catch(e){error(e);$('answer').textContent='本次分析未完成。'}finally{$('ask').disabled=false}};
+const libraryControls=document.createElement('div');
+libraryControls.hidden=document.body.dataset.libraryAdmin!=='true';
+libraryControls.style.margin='16px 0';
+for(const [label,published] of [['发布当前产品到个人助手产品库',true],['取消当前产品发布',false]]){
+ const b=document.createElement('button');b.textContent=label;b.onclick=async()=>{try{if(!bundleId)throw Error('请先打开已完成的产品资料任务');const response=await fetch('/v1/product-ingestion/bundles/'+encodeURIComponent(bundleId)+'/publication',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({published})});const value=await response.json();if(!response.ok)throw Error(value.detail||'发布操作失败');$('message').textContent=published?'已发布：个人助手可读取资料与已具备的能力。':'已取消产品库发布。';}catch(e){error(e);}};libraryControls.append(b);
+}
+document.body.append(libraryControls);
+
+function renderCurrentForm(bundle){
+ const cap=bundle.capabilities.illustration;if(!cap.ready_count)return;
+ const host=text('section','',$('benefits'));text('h3','按明确个人条件生成利益表',host);text('p','只执行选中的已接通项目；缺值保留原因，不能视为0。',host);
+ const fields={};for(const [key,label,type] of [['entry_age','投保年龄','number'],['payment_years','交费年数','number'],['annual_premium_input','明确年交保费（元）','text'],['end_year','展示年数','number'],['base_amount_input','已知基本保险金额（元，可选）','text']]){const labelNode=text('label',label+' ',host),input=document.createElement('input');input.type=type;labelNode.append(input);fields[key]=input;text('br','',host)}
+ const sexLabel=text('label','性别 ',host),sex=text('select','',sexLabel);for(const [v,l] of [['','请选择'],['male','男'],['female','女']]){const o=text('option',l,sex);o.value=v}
+ const checks=[];for(const t of cap.targets||[]){if(t.state!=='ready')continue;const label=text('label','',host),check=text('input','',label);check.type='checkbox';check.checked=t.id!=='source_parameter_base_amount'&&!t.required_inputs.includes('no_special_surrender_provisions');label.append(document.createTextNode(t.name));text('br','',host);checks.push([check,t.id])}
+ const planLabel=text('label','',host),plan=text('input','',planLabel);plan.type='checkbox';planLabel.append(document.createTextNode('正常年交、无变更、无贷款的计划情景'));text('br','',host);
+ const surrenderLabel=text('label','',host),surrender=text('input','',surrenderLabel);surrender.type='checkbox';surrenderLabel.append(document.createTextNode('如选退保金，确认本次按无特殊退保约定的默认关系试算'));
+ const button=text('button','生成利益表',host),output=text('div','',host);
+ button.onclick=async()=>{button.disabled=true;try{
+  if(!plan.checked)throw Error('请确认计划情景');const inputs={scenario:'normal_annual_payment_no_changes_no_loans'};
+  for(const [key,input] of Object.entries(fields)){if(key==='base_amount_input'&&!input.value)continue;if(!input.value)throw Error('请补充'+key);inputs[key]=['annual_premium_input','base_amount_input'].includes(key)?input.value:Number(input.value)}
+  if(sex.value)inputs.sex=sex.value;if(surrender.checked)inputs.no_special_surrender_provisions=true;
+  const metrics=checks.filter(([c])=>c.checked).map(([,id])=>id);if(!metrics.length)throw Error('请选择执行项目');
+  const result=await api('/bundles/'+encodeURIComponent(bundle.bundle_id)+'/illustrate',{inputs,metrics});output.replaceChildren();const value=result.data?.benefit_table;
+  if(!value){text('p','未生成个人金额，请补充所列条件或资料。',output);text('pre',JSON.stringify(result.data||result,null,2),output);return}
+  text('p',result.status==='ok'?'所选项目已生成。':'已生成部分项目；未满足条件的项目保持缺口。',output);
+  const table=text('table','',output),head=text('tr','',table);text('th','保单年度',head);for(const c of value.columns)text('th',c.name,head);
+  for(const row of value.rows){const tr=text('tr','',table);text('th',row.year,tr);for(const c of value.columns)text('td',row.values[c.id]??'—',tr)}
+  if(value.issues.length||result.data.missing_targets?.length)text('pre',JSON.stringify({issues:value.issues,missing_targets:result.data.missing_targets},null,2),output);
+  const save=text('button','下载CSV',output);save.onclick=()=>{
+   const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+   const lines=[['保单年度',...value.columns.map(c=>c.name)],...value.rows.map(row=>[row.year,...value.columns.map(c=>row.values[c.id])])].map(row=>row.map(quote).join(',')).join('\r\n');
+   const url=URL.createObjectURL(new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='个人利益表.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)
+  };
+ }catch(e){error(e)}finally{button.disabled=false}};
+}
+
+function renderLiteralWindow(host,c){
+ const table=text('table','',host),w=c.window,selected=c.tables.find(t=>t.table_id===c.selected_table_id),rowEnd=Math.min(w.row_start+w.row_count,selected.row_count),colEnd=Math.min(w.column_start+w.column_count,selected.column_count),starts=new Map(),covered=new Set();
+ for(const cell of c.cells){const r=Math.max(cell.row_index,w.row_start),k=Math.max(cell.column_index,w.column_start);starts.set(r+','+k,{cell,r,k,rows:Math.min(cell.row_index+cell.row_span,rowEnd)-r,cols:Math.min(cell.column_index+cell.column_span,colEnd)-k})}
+ for(let r=w.row_start;r<rowEnd;r++){const tr=text('tr','',table);for(let k=w.column_start;k<colEnd;k++){if(covered.has(r+','+k))continue;const v=starts.get(r+','+k),td=text('td',v?.cell.raw_text||'',tr);if(v){td.rowSpan=v.rows;td.colSpan=v.cols;for(let rr=r;rr<r+v.rows;rr++)for(let kk=k;kk<k+v.cols;kk++)covered.add(rr+','+kk)}}}
+}
+
+async function renderCurrentReadings(bundle){
+ const id=encodeURIComponent(bundle.bundle_id),rules=await api('/bundles/'+id+'/rules?include_evidence=true');
+ const methods={formula:'原文公式',exact_table_lookup:'精确查表指引',illustration_reference:'原表参考指引'};
+ for(const value of rules.rules||[]){const box=text('div','',$('rules'));box.className='rule';text('h3',value.name||value.target?.title||value.title||value.id||value.target_id||'演示列',box);text('p',(methods[value.method||value.rule?.type]||value.state)+'；'+({ready:'可执行，仍需满足个人条件',blocked:'未接通：'+(value.issues||[]).join('；'),reference_only:'仅官方原例'}[value.state]||'尚未完成执行绑定'),box);if(value.original_rule||value.formula||value.rule){const d=text('details','',box);text('summary','查看规则、条件与原文',d);const original=value.original_rule||value.rule||{},f=original.formula||value.formula;text('p','以下为规则获取依据；原文案例条件不代表本次个人条件。个人结果使用上方明确输入。',d);if(f?.summary)text('p',f.summary,d);for(const v of f?.variables||[])text('p',v.meaning+'（'+({CNY:'元',year:'年',dimensionless:'无量纲',boolean:'条件'}[v.unit]||v.unit)+'）',d);if(original.assumption)text('p','适用前提：'+(typeof original.assumption==='string'?original.assumption:JSON.stringify(original.assumption)),d);const quotes=new Set();const collect=x=>{if(Array.isArray(x))x.forEach(collect);else if(x&&typeof x==='object'){if(typeof x.quote==='string')quotes.add(x.quote);Object.values(x).forEach(collect)}};collect(original);for(const q of quotes)text('blockquote',q,d);if(!quotes.size)text('p','该项按当前已核验的执行定义处理；原件可由上方PDF入口查看。',d)}}
+ const examples=await api('/bundles/'+id+'/illustration-examples');
+ text('p',examples.cases?.length?'说明书原案例（保留原条件，不作为个人预测）':'没有已准备的说明书原案例。',$('benefits'));
+ for(const item of examples.cases||[])for(const t of item.tables){const b=text('button','原案例第'+t.page_number+'页',$('benefits'));const host=text('div','',$('benefits'));const load=async(row=0,col=0)=>{const data=await api('/bundles/'+id+'/illustration-examples?case_id='+encodeURIComponent(item.case_id)+'&table_id='+encodeURIComponent(t.table_id)+'&row_start='+row+'&column_start='+col);host.replaceChildren();const c=data.case;for(const ctx of c.contexts||[])text('blockquote',ctx.raw_text,host);renderLiteralWindow(host,c);const nav=(label,r,k)=>{const btn=text('button',label,host);btn.onclick=()=>load(r,k).catch(error)};if(row)nav('上一组行',Math.max(0,row-c.window.row_count),col);if(c.has_more_rows)nav('下一组行',row+c.window.row_count,col);if(col)nav('上一组列',row,Math.max(0,col-c.window.column_count));if(c.has_more_columns)nav('下一组列',row,col+c.window.column_count);sourceLink(host,item.document_version_id,t.page_number);};b.onclick=()=>load().catch(error)}
+}
+
+history();
+const initialBundle=new URLSearchParams(location.search).get('bundle_id');if(initialBundle){bundleId=initialBundle;render().catch(error)}
+</script></body></html>

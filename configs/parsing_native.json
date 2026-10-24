@@ -1,0 +1,6 @@
+{
+  "ocr_mode": "off",
+  "layout_mode": "xy_cut",
+  "extract_tables": true,
+  "max_pages": 2000
+}

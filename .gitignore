@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+data/*
+!data/README.md
+logs/*
+!logs/.gitkeep
+.venv-index/
+
+# User-local assistant outputs
+local_files/
+
+# Local source documents, generated exports and acceptance artifacts
+/产品资料/
+/tmp/
+/output/
+/archive/
+
+# Local credentials and database snapshots
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.db
+
+# Local development documents are not distributed
+/docs/

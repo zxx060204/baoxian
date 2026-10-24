@@ -1,0 +1,9 @@
+{
+  "ocr_mode": "off",
+  "ocr_dpi": 180,
+  "ocr_min_confidence": 0.8,
+  "ocr_max_pixels": 20000000,
+  "layout_mode": "xy_cut",
+  "extract_tables": true,
+  "max_pages": 2000
+}

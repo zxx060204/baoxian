@@ -1,0 +1,103 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>保险 Agent · 个人保险助手</title><style>[hidden]{display:none!important}*{box-sizing:border-box}body{margin:0;background:#f3f6fa;color:#183147;font:16px/1.6 system-ui}main{max-width:1140px;margin:28px auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:27px;margin:0}p{margin:8px 0}.muted{color:#607386}.badge{background:#e4eefc;padding:5px 10px;border-radius:20px;font-size:13px}.grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;margin-top:20px}section{background:white;border:1px solid #dae3ed;padding:22px;border-radius:12px}button,input,textarea{font:inherit}button{border:1px solid #bfd0e3;border-radius:7px;background:#edf4fc;color:#22496f;padding:8px 13px;cursor:pointer;margin:4px}button.primary{background:#205e9a;color:white;border-color:#205e9a}textarea{width:100%;min-height:130px;border:1px solid #bbcbdc;border-radius:8px;padding:12px;resize:vertical}input{border:1px solid #bbcbdc;border-radius:6px;padding:8px}.answer{white-space:pre-wrap;overflow-wrap:anywhere}#trace{font-size:14px;padding-left:20px}.notice{background:#fff5da;color:#755319;padding:10px;border-radius:6px}.question{background:#ecf5ff;border-left:3px solid #377ac0;padding:12px;white-space:pre-wrap}details{margin:12px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}#status{font-weight:600}#citations button{font-size:14px}.samples button{font-size:14px;text-align:left}h2{font-size:19px;margin:0 0 12px}@media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:14px}header{align-items:flex-start;flex-direction:column}}</style><body data-local-session="false"><main><header><div><h1>保险资料 Agent</h1><nav><a href="/analysis">产品与分析</a> · <a href="/admin">上传资料</a></nav><p class="muted">用自然语言提出问题，查看工具进度、来源和待补条件。</p></div><span class="badge">原生工具循环 · 开发验证</span></header><p class="notice">资料尚有待审核项。数值使用精确源表和来源规则；缺条件会追问，未知资格不会自动放行。</p><div class="grid"><div><section><div id="auth"><label>本地访问令牌 <input id="token" type="password" autocomplete="off"></label></div><label>新产品 PDF（可选）<input id="documentFiles" type="file" accept=".pdf,application/pdf" multiple></label><div id="documentSlots"></div><p class="muted"><a href="/product-upload">打开产品资料工作台</a>；附件上传后自动准备检索、表格、规则和本人资料包；测算能力按实际资料分别报告。</p><label for="message">你的问题或补充信息</label><textarea id="message" placeholder="例如：友邦盈如意悠享荣耀终身寿险（分红型）的保险期间如何规定？"></textarea><div><button class="primary" id="send">发送</button><button id="new">新建会话</button><button id="cancel">取消任务</button></div><p id="status">可以开始提问。</p><small id="runInfo" class="muted"></small></section><section style="margin-top:18px"><div id="question" class="question" hidden></div><div id="answer" class="answer"></div><div id="citations"></div><div id="reports"></div><details id="raw" hidden><summary>查看结构化结果与缺口</summary><pre id="json"></pre></details></section></div><aside><section><h2>可编辑测试问题</h2><div id="samples" class="samples"></div><p class="muted">示例参数为开发测试场景，不代表你的个人信息。点击后可修改再发送。</p></section><section style="margin-top:18px"><h2>工具与运行进度</h2><ol id="trace"></ol><p class="muted">只展示工具和已验证结果，不展示模型内部推理。</p></section><section style="margin-top:18px"><h2>分析记录</h2><button id="historyRefresh">刷新历史记录</button><div id="history"></div></section></aside></div></main><script>
+const $=id=>document.getElementById(id);let thread=localStorage.getItem('insurance-assistant-thread'),run=null,timer=null,lastEvent=0,pendingResume=null,threadOpened=false;
+const names={product_documents:'接入或分析新产品资料',resolve_products:'定位产品版本',get_product_capabilities:'读取资料能力',read_evidence:'读取原件证据',read_profile:'读取画像',update_profile:'更新工作画像',forget_profile:'忘记画像',recommend_products:'整理候选推荐',read_analysis:'读取历史分析',compare_analysis_results:'比较已有产品结果',memory:'记忆与历史',list_files:'查看会话文件',read_file:'读取会话文件',write_file:'保存会话草稿',patch_file:'更新会话草稿',request_clarification:'补充条件'};
+function headers(){return {'Content-Type':'application/json',Authorization:'Bearer '+$('token').value};}
+async function api(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:headers(),body:body===undefined?undefined:JSON.stringify(body)});if(!response.ok){let reason='';try{reason=(await response.json()).detail||'';}catch{}throw new Error('请求未完成（'+response.status+'）'+(reason?'：'+(errors[reason]||reason):''));}return response.json();}
+const errors={runtime_source_changed_restart_required:'服务代码已更新，本次请求未执行。请重启服务后新建会话。',runtime_binding_mismatch:'任务与当前服务版本不一致，请新建会话重新提交。',worker_startup_failed:'执行进程未能启动，请检查服务状态后重试。',worker_protocol_invalid:'执行进程未返回有效状态，请检查后台诊断。'};
+function show(text){$('status').textContent=text;}
+function reset(){clearTimeout(timer);thread=null;threadOpened=false;localStorage.removeItem('insurance-assistant-thread');run=null;lastEvent=0;$('answer').textContent='';$('trace').replaceChildren();$('citations').replaceChildren();$('reports').replaceChildren();$('question').hidden=true;$('raw').hidden=true;$('runInfo').textContent='';show('已新建会话。');}
+$('new').onclick=()=>{if(run&&['queued','running','waiting'].includes(run.state))return show('请先完成或取消当前任务，再新建会话。');reset();};
+$('documentFiles').onchange=()=>{$('documentSlots').replaceChildren();for(const file of $('documentFiles').files){const row=document.createElement('div');row.dataset.index=[...$('documentFiles').files].indexOf(file);const label=document.createElement('span');label.textContent=file.name+' ';const select=document.createElement('select');for(const [k,v] of Object.entries({terms:'保险条款',brochure:'产品说明书',premium_rate:'费率/基本保额表',cash_value:'现金价值表',other:'其他'})){const option=document.createElement('option');option.value=k;option.textContent=v;select.append(option)}if(/现金/.test(file.name))select.value='cash_value';else if(/费率|基本保险金额/.test(file.name))select.value='premium_rate';else if(/说明书/.test(file.name))select.value='brochure';row.append(label,select);$('documentSlots').append(row)}};
+async function uploadDocuments(){const assets=[];for(const row of $('documentSlots').children){const file=$('documentFiles').files[Number(row.dataset.index)],response=await fetch('/v1/product-ingestion/uploads',{method:'POST',headers:{...headers(),'Content-Type':'application/pdf'},body:file});if(!response.ok)throw Error('附件上传失败');const value=await response.json();assets.push({asset_id:value.asset_id,document_type:row.querySelector('select').value})}return assets}
+$('send').onclick=async()=>{try{const text=$('message').value.trim();if(!text)return show('请填写问题或补充信息。');$('send').disabled=true;clearTimeout(timer);if(run?.state==='waiting'){await api('/v1/runs/'+run.run_id+'/resume',{response:{message:text},resume_id:crypto.randomUUID(),revision:run.revision,interrupt_id:run.clarification.interrupt_id});pendingResume={revision:run.revision,interrupt:run.clarification.interrupt_id};run.state='running';}else{if(run&&['queued','running'].includes(run.state))throw new Error('当前任务正在执行，可以先取消。');if(!thread){thread=(await api('/v1/threads',{})).thread_id;localStorage.setItem('insurance-assistant-thread',thread);threadOpened=true;}else if(!threadOpened){await api('/v1/threads/'+thread+'/open',{});threadOpened=true;}run=await api('/v1/threads/'+thread+'/runs',{message:text,request_id:crypto.randomUUID(),attachments:await uploadDocuments()});$('documentFiles').value='';$('documentSlots').replaceChildren();lastEvent=0;$('trace').replaceChildren();$('answer').textContent='';$('citations').replaceChildren();$('reports').replaceChildren();$('raw').hidden=true;}$('question').hidden=true;$('message').value='';progress();poll();}catch(error){show(error.message);}finally{$('send').disabled=false;}};
+$('cancel').onclick=async()=>{if(!run)return;try{run=await api('/v1/runs/'+run.run_id+'/cancel',{});clearTimeout(timer);show('任务已取消。');$('question').hidden=true;}catch(error){show(error.message);}};
+async function progress(){const target=run.run_id;try{const response=await fetch('/v1/runs/'+target+'/events?after='+lastEvent,{headers:headers()});if(!response.ok||!response.body)return;const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';while(true){const item=await reader.read();if(item.done)break;if(!run||run.run_id!==target){reader.cancel();return;}buffer+=decoder.decode(item.value,{stream:true});const blocks=buffer.split('\n\n');buffer=blocks.pop();for(const block of blocks){let id,event,data;for(const line of block.split('\n')){if(line.startsWith('id: '))id=Number(line.slice(4));if(line.startsWith('event: '))event=line.slice(7);if(line.startsWith('data: '))try{data=JSON.parse(line.slice(6));}catch{}}if(!id||id<=lastEvent)continue;lastEvent=id;if(['tool_started','tool_completed','context_compacted','validation_failed'].includes(event)){const li=document.createElement('li');li.textContent=event==='context_compacted'?'已整理长上下文，原始记录保留':event==='validation_failed'?'输出校验未通过，正在有界修复':(names[data?.tool]||data?.tool||'工具')+(event==='tool_started'?'…':' · '+(data?.status||'已完成'));$('trace').append(li);}}}}catch{}}
+async function poll(){try{run=await api('/v1/runs/'+run.run_id);if(pendingResume&&run.state==='waiting'&&run.revision===pendingResume.revision&&run.clarification?.interrupt_id===pendingResume.interrupt){show('已提交补充信息，等待任务继续执行。');timer=setTimeout(poll,800);return;}pendingResume=null;$('runInfo').textContent='任务 '+run.run_id+' · 模型请求 '+(run.budget.llm_calls||0)+' · 工具执行 '+(run.budget.tool_calls||0);if(run.state==='waiting'&&run.clarification?.kind==='document_processing'){show('产品资料正在解析，结束后将继续说明实际可用项。');$('question').hidden=true;timer=setTimeout(poll,1500);return;}if(run.state==='waiting'){show('需要你补充信息，请在上方输入后发送。');$('question').textContent=run.clarification.question;$('question').hidden=false;return;}if(run.state==='completed'){show(run.result.status==='answered'?'已完成来源与结果校验。':run.result.status==='partial'?'已得到部分验证结果，任务仍有未完成项。':'本次未形成可核验结论。');await render(run.result);await progress();return;}if(['failed','cancelled'].includes(run.state)){show(run.state==='cancelled'?'已取消。':(errors[run.error_code]||('任务未完成：'+run.error_code+'。可新建任务重试。')));await progress();return;}show('正在执行，结果将在验证后显示。');timer=setTimeout(poll,1200);}catch(error){show(error.message);}}
+async function render(result){$('answer').textContent=result.display_text||result.text||'';$('json').textContent=JSON.stringify(result,null,2);$('raw').hidden=false;if(result.document_analysis){const d=result.document_analysis;for(const q of d.claims||[]){const b=document.createElement('button');b.textContent='上传原件第'+q.page_start+'页';b.onclick=()=>download('/v1/product-ingestion/bundles/'+encodeURIComponent(d.bundle_id)+'/documents/'+encodeURIComponent(q.document_version_id)+'/pdf','uploaded-source.pdf',q.page_start);$('citations').append(b);}}const packet=result.evidence_package_id?await api('/v1/evidence/'+result.evidence_package_id):null;for(const claim of result.claims||[]){const e=packet?.evidence.find(e=>e.evidence_id===claim.evidence_id);if(!e)continue;const b=document.createElement('button');b.textContent='原件第'+claim.page_start+'页';b.onclick=()=>download('/v1/documents/'+encodeURIComponent(e.document_version_id)+'/source?package_id='+encodeURIComponent(result.evidence_package_id),'source.pdf',claim.page_start);$('citations').append(b);}if(result.files){for(const file of result.files){const p=document.createElement('p');p.textContent='会话文件：'+file.path+(file.content?'\n'+file.content:'');$('answer').append(p);}}}
+async function download(path,name,page){try{const response=await fetch(path,{headers:headers()});if(!response.ok)throw new Error('资料当前不可用。');const url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url+(page?'#page='+page:'');a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(error){show(error.message);}}
+const examples=['查看当前可访问产品及其可执行项目。','读取已发布产品，说明哪些能生成利益表、哪些只能原文问答。','请在本地 notes/test.md 保存草稿：本轮需要重点核对续保条件。','请记住：我偏好报告先给结论。'];for(const text of examples){const b=document.createElement('button');b.textContent=text;b.onclick=()=>{$('message').value=text;$('message').focus();};$('samples').append(b);}if(document.body.dataset.localSession==='true')$('auth').hidden=true;
+const renderSourceAnswer=render;
+render=async function(result){
+ await renderSourceAnswer(result);
+ const value=result.benefit_table;
+ if(value){
+  const wrap=document.createElement('div');wrap.style.overflowX='auto';
+  const title=document.createElement('h2');title.textContent=value.product+' 年度利益表';wrap.append(title);
+  const table=document.createElement('table'),head=document.createElement('tr');
+  for(const label of ['保单年度',...value.columns.map(c=>c.name)]){const th=document.createElement('th');th.textContent=label;head.append(th)}table.append(head);
+  for(const row of value.rows){const tr=document.createElement('tr');for(const v of [row.year,...value.columns.map(c=>row.values[c.id])]){const td=document.createElement('td');td.textContent=v??'—';td.style.cssText='padding:8px;border-bottom:1px solid #ddd';tr.append(td)}table.append(tr)}wrap.append(table);
+  if(Object.keys(value.summary||{}).length){const p=document.createElement('p');p.textContent='基本保险金额：'+(value.summary.base_amount??'未知')+'元';wrap.append(p)}
+  if(value.issues?.length){const p=document.createElement('p');p.textContent='部分列尚缺数据或尚未处理，空白不代表0。';wrap.append(p)}$('answer').append(wrap);
+ }
+ if(result.product_example){const p=document.createElement('p');p.textContent=result.product_example.note;$('answer').append(p)}
+};
+
+function csvDownload(name,headers,rows){
+ const cell=v=>{let s=v===null||v===undefined?'':typeof v==='object'?JSON.stringify(v):String(v);if(/^[=+@]/.test(s)||/^-\D/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
+ const text='\uFEFF'+[headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function resultTables(result){
+ const out=[],benefit=result.benefit_table;
+ if(benefit)out.push({name:'利益表',headers:['保单年度',...benefit.columns.map(c=>c.name)],rows:benefit.rows.map(row=>[row.year,...benefit.columns.map(c=>row.values[c.id])])});
+ if(result.recommendation)out.push({name:'候选推荐',headers:['产品','排序','处理','理由','依据引用'],rows:result.recommendation.candidates.map(c=>[c.product_name,c.rank,c.disposition,c.reason,c.result_refs.join(';')])});
+ return out;
+}
+const renderBeforeTables=render;
+render=async function(result){
+ await renderBeforeTables(result);
+ if(result.workflow_result_id||result.analysis_id){const p=document.createElement('p');p.textContent='分析记录：'+(result.analysis_id||result.workflow_result_id);$('answer').append(p);}
+ for(const value of resultTables(result)){
+  const button=document.createElement('button');button.textContent='下载'+value.name+' CSV';button.onclick=()=>{const id=result.analysis_id||result.workflow_result_id||'',conditions=result.benefit_table?.inputs||result.recommendation?.profile||result.product_comparison?.products.map(p=>({product:p.product,inputs:p.inputs}))||{};csvDownload(value.name+'.csv',['分析记录','输入条件',...value.headers],value.rows.map(row=>[id,conditions,...row]));};$('reports').append(button);
+ }
+ if(result.recommendation){const list=document.createElement('ol');for(const c of result.recommendation.candidates){const li=document.createElement('li');li.textContent=c.product_name+'：'+c.reason+(c.disposition==='insufficient_information'?'（资料不足）':c.disposition==='excluded'?'（已排除）':'');list.append(li);}$('answer').append(list);}
+ if(result.profile?.conflicts?.length){const p=document.createElement('p');p.textContent='画像存在待澄清信息：'+result.profile.conflicts.map(x=>x.field).join('、');$('answer').append(p);}
+};
+async function loadHistory(){
+ try{const value=await api('/v1/analyses');$('history').replaceChildren();for(const row of value.analyses){const b=document.createElement('button');b.style.textAlign='left';b.textContent=new Date(row.created_at*1000).toLocaleString()+' '+(row.preview||'分析记录').slice(0,50);b.onclick=async()=>{try{const saved=await api('/v1/analyses/'+row.analysis_id);$('citations').replaceChildren();$('reports').replaceChildren();await render({...saved.content,analysis_id:row.analysis_id});$('message').value='请读取分析记录 '+row.analysis_id+'，继续分析：';show('已打开历史分析，可在输入框补充新的条件。');}catch(e){show(e.message);}};$('history').append(b);}}catch(e){show(e.message);}
+}
+$('historyRefresh').onclick=loadHistory;
+
+const oneResultTables=resultTables;
+resultTables=function(result){
+ const tables=oneResultTables(result);
+ for(const value of (result.benefit_tables||[]).slice(0,-1)){
+  tables.push({name:value.product+'利益表',headers:['保单年度',...value.columns.map(c=>c.name)],rows:value.rows.map(row=>[row.year,...value.columns.map(c=>row.values[c.id])])});
+ }
+ return tables;
+};
+const renderWithHistory=render;
+render=async function(result){
+ await renderWithHistory(result);
+ for(const value of (result.benefit_tables||[]).slice(0,-1)){
+  const wrap=document.createElement('div'),title=document.createElement('h2'),table=document.createElement('table');wrap.style.overflowX='auto';title.textContent=value.product+' 年度利益表';wrap.append(title);
+  for(const [index,row] of [['保单年度',...value.columns.map(c=>c.name)],...value.rows.map(r=>[r.year,...value.columns.map(c=>r.values[c.id])])].entries()){const tr=document.createElement('tr');for(const v of row){const cell=document.createElement(index?'td':'th');cell.textContent=v??'—';cell.style.cssText='padding:8px;border-bottom:1px solid #ddd';tr.append(cell);}table.append(tr);}wrap.append(table);$('answer').append(wrap);
+ }
+ for(const d of (result.document_analyses||[]).slice(0,-1)){
+  const p=document.createElement('p');p.textContent=d.text;$('answer').append(p);
+  for(const q of d.claims||[]){const b=document.createElement('button');b.textContent='上传原件第'+q.page_start+'页';b.onclick=()=>download('/v1/product-ingestion/bundles/'+encodeURIComponent(d.bundle_id)+'/documents/'+encodeURIComponent(q.document_version_id)+'/pdf','uploaded-source.pdf',q.page_start);$('citations').append(b);}
+ }
+};
+
+const resultTablesBeforeComparison=resultTables;
+resultTables=function(result){
+ const out=resultTablesBeforeComparison(result),comparison=result.product_comparison;
+ if(comparison){
+  const rows=comparison.cells.map(c=>[c.product,c.label,c.year,c.value,c.unit,c.comparable?'同条件可比':'条件不同或缺值']);
+  for(const p of comparison.products)for(const fact of p.facts||[])rows.push([p.product,'原文要点','',fact.text,'','一般事实参考']);
+  out.push({name:'多产品比较',headers:['产品','项目','保单年度','值/原文','单位','可比性'],rows});
+ }
+ return out;
+};
+
+const renderBeforeSourceTables=render;
+render=async function(result){
+ await renderBeforeSourceTables(result);
+ const catalogs=result.source_table_catalogs||[result.source_tables].filter(Boolean);
+ for(const catalog of catalogs){const p=document.createElement('p');p.textContent='原文表格目录（不是个人报价）：'+JSON.stringify(catalog);$('answer').append(p);}
+ const windows=result.source_table_windows||[result.source_table].filter(Boolean);
+ for(const value of windows){const host=document.createElement('div'),title=document.createElement('h2'),table=document.createElement('table');title.textContent='原文表格窗口（坐标从0开始；不是个人报价）';host.append(title);for(const c of value.cells||[]){const tr=document.createElement('tr');for(const v of [c.row_index,c.column_index,c.raw_text]){const td=document.createElement('td');td.textContent=v??'';tr.append(td);}table.append(tr);}host.append(table);for(const c of value.contexts||[]){const q=document.createElement('blockquote');q.textContent=c.raw_text;host.append(q);}if(value.has_more_rows||value.has_more_columns){const p=document.createElement('p');p.textContent='当前只显示一个窗口，还有其他行或列；可继续要求读取。';host.append(p);}$('answer').append(host);}
+ if(result.product_example){const p=document.createElement('pre');p.textContent=JSON.stringify(result.product_example,null,2);$('answer').append(p);}
+};
+
+</script></body></html>

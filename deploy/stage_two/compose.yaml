@@ -1,0 +1,45 @@
+name: insurance-stage-two
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: insurance_rag
+      POSTGRES_USER: insurance
+      POSTGRES_PASSWORD: ${INSURANCE_POSTGRES_PASSWORD:?Set INSURANCE_POSTGRES_PASSWORD
+        before starting}
+    ports:
+    - 127.0.0.1:5432:5432
+    volumes:
+    - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U insurance -d insurance_rag
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  opensearch:
+    image: opensearchproject/opensearch:3.9.0
+    environment:
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: 'true'
+      DISABLE_SECURITY_PLUGIN: 'true'
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+    ports:
+    - 127.0.0.1:9200:9200
+    volumes:
+    - opensearch_data:/usr/share/opensearch/data
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:9200/_cluster/health >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 18
+volumes:
+  postgres_data: null
+  opensearch_data: null

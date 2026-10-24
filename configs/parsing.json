@@ -1,0 +1,6 @@
+{
+  "image_coverage_threshold": 0.15,
+  "suspicious_char_ratio": 0.02,
+  "table_edge_threshold": 8,
+  "max_pages": 2000
+}

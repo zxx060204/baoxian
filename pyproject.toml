@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "insurance-rag"
+version = "0.1.0"
+description = "Insurance acquisition and traceable document parsing"
+requires-python = ">=3.10"
+dependencies = [
+  "pypdf==6.10.0",
+  "pdfplumber==0.11.9",
+  "pypdfium2==5.13.0",
+  "Pillow==12.3.0",
+]
+
+[project.optional-dependencies]
+test = ["reportlab==4.4.9"]
+ocr = ["rapidocr-onnxruntime==1.4.4", "opencv-python==4.11.0.86", "onnxruntime==1.23.2", "Shapely==2.1.2", "pyclipper==1.4.0"]
+evaluation = ["reportlab==4.4.9"]
+excel = ["openpyxl==3.1.5", "xlrd==2.0.2"]
+indexing = ["psycopg[binary]>=3,<4"]
+agent-loop = ["psycopg[binary]==3.3.6", "pydantic==2.13.5", "fastapi==0.143.0", "uvicorn==0.54.0", "httpx==0.28.1"]
+embedding = ["transformers>=4,<6", "sentence-transformers>=3,<6"]
+
+[project.scripts]
+insurance-crawl = "insurance_rag.acquisition.crawler:main"
+insurance-manifest = "insurance_rag.parsing.cli:manifest_main"
+insurance-parse = "insurance_rag.parsing.cli:parse_main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"insurance_rag.acquisition" = ["*.json"]
+
+"insurance_rag.api" = ["*.html"]

@@ -1,0 +1,26 @@
+{
+  "中国人寿": {
+    "url": "https://www.e-chinalife.com/xxpl/gsgk/cpjbxx/",
+    "domains": [
+      "chinalife.com.cn",
+      "e-chinalife.com"
+    ],
+    "family": "life"
+  },
+  "人保寿险": {
+    "url": "https://www.picclife.com/picclifewebsite/webfile/productInformations/index.html",
+    "domains": [
+      "picclife.com",
+      "picc.com.cn",
+      "picc.com"
+    ],
+    "family": "life"
+  },
+  "工银安盛人寿": {
+    "url": "https://www.icbc-axa.com/public/public_base/public_base_3/publicIndex.jsp",
+    "domains": [
+      "icbc-axa.com"
+    ],
+    "family": "life"
+  }
+}

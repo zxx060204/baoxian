@@ -1,0 +1,119 @@
+{
+  "schema_version": 2,
+  "common": [
+    {
+      "kind": "产品目录与销售状态",
+      "format": "HTML/JSON/PDF",
+      "purpose": "产品名称、编号、版本、分类及当前销售状态"
+    },
+    {
+      "kind": "条款",
+      "format": "PDF/HTML/JPG/PNG",
+      "purpose": "保障、免责、等待期、期限与主附险关系"
+    },
+    {
+      "kind": "产品说明书",
+      "format": "PDF/HTML/JPG/PNG",
+      "aliases": [
+        "产品说明",
+        "产品介绍"
+      ],
+      "purpose": "普通型、新型、短期和团体产品说明统一类别，子类分别保留"
+    },
+    {
+      "kind": "费率表",
+      "format": "PDF/XLS/XLSX/HTML",
+      "aliases": [
+        "保费表",
+        "基本保险金额表",
+        "风险保障费用表"
+      ],
+      "purpose": "报价条件和数值，原始单位保留"
+    },
+    {
+      "kind": "现金价值表",
+      "format": "PDF/XLS/XLSX/ZIP",
+      "purpose": "按适用产品收集；不要求每个短期险都有"
+    },
+    {
+      "kind": "投保规则与告知",
+      "format": "PDF/HTML/JPG/PNG",
+      "aliases": [
+        "投保须知",
+        "投保提示",
+        "健康告知",
+        "职业分类"
+      ],
+      "purpose": "画像匹配条件；通用表单不当作单款产品的核保结论"
+    },
+    {
+      "kind": "产品变更与停售公告",
+      "format": "PDF/HTML",
+      "purpose": "适用版本和停售状态，历史资料与在售资料分开"
+    }
+  ],
+  "conditional": [
+    {
+      "kind": "红利实现率",
+      "applies_to": "分红型",
+      "format": "PDF/HTML/JSON"
+    },
+    {
+      "kind": "结算利率公告",
+      "applies_to": "万能型/其他明确适用账户",
+      "format": "PDF/HTML/JSON"
+    },
+    {
+      "kind": "投资账户与风险信息",
+      "applies_to": "投资连结型",
+      "format": "PDF/HTML/JSON"
+    },
+    {
+      "kind": "医疗服务与增值权益",
+      "applies_to": "有服务权益的医疗/健康产品",
+      "format": "PDF/HTML/JSON"
+    }
+  ],
+  "audit_optional": [
+    {
+      "kind": "产品分类与风险等级",
+      "format": "PDF/HTML/JSON"
+    },
+    {
+      "kind": "备案产品清单表",
+      "format": "PDF"
+    },
+    {
+      "kind": "总精算师声明书",
+      "format": "PDF"
+    },
+    {
+      "kind": "法律责任人声明书",
+      "format": "PDF"
+    },
+    {
+      "kind": "审批产品清单表及申请表",
+      "format": "PDF"
+    }
+  ],
+  "availability_statuses": [
+    "pending",
+    "discovered",
+    "downloaded",
+    "validated",
+    "embedded_in_official_catalog",
+    "embedded_in_core_document_pending_extraction",
+    "not_found_in_inspected_sources",
+    "not_applicable",
+    "requires_product_linkage",
+    "blocked",
+    "failed",
+    "not_attempted"
+  ],
+  "notes": [
+    "共用类别是比较分析的统一清单，不代表每家公司或每款产品都公开同名独立附件。",
+    "网页也是资料，应保存原始HTML和来源；类别一致不表示产品、版本或单位已对齐。",
+    "未发现不是官网绝对没有，未下载不是无法获得；每项保留发现范围和关联等级。",
+    "银行渠道资料保留渠道身份；图片尚未OCR；PDF独立解析恢复不等于通过原严格验证。"
+  ]
+}
