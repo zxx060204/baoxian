@@ -33,5 +33,27 @@ local_files/
 *.sqlite3
 *.db
 
-# Local development documents are not distributed
-/docs/
+# Project documentation is tracked (docs/); only local data/build noise is ignored below.
+
+# Agent workspace noise: unrelated materials, test leftovers, build output
+/resume-materials/
+/.workbuddy/
+/tmp*/
+/_local/
+/frontend/node_modules/
+/frontend/dist/
+
+# Legacy reference files remain local on the new implementation branch
+/旧实现/
+/保险数据采集/
+/.scratch/
+/新开发/验收资料/
+
+# New implementation workspace
+/新开发/**/node_modules/
+/新开发/**/dist/
+/新开发/coverage/
+/.pnpm-store/
+
+/新开发/.venv-python/
+/新开发/.runtime/

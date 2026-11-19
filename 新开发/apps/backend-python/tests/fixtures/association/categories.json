@@ -1,0 +1,27 @@
+{
+  "msg": "ok",
+  "code": "200",
+  "data": [
+    {
+      "codeKey": "PubNewProdTypeCode_00",
+      "value": "人寿保险"
+    },
+    {
+      "codeKey": "PubNewProdTypeCode_01",
+      "value": "年金保险"
+    },
+    {
+      "codeKey": "PubNewProdTypeCode_02",
+      "value": "健康保险"
+    },
+    {
+      "codeKey": "PubNewProdTypeCode_03",
+      "value": "意外伤害保险"
+    },
+    {
+      "codeKey": "PubNewProdTypeCode_04",
+      "value": "委托管理业务"
+    }
+  ],
+  "timestamp": 1794055617
+}

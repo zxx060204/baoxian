@@ -1,0 +1,26 @@
+{
+  "name": "baoxian",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.28.5",
+  "scripts": {
+    "test": "vitest run apps/web/test --pool=threads",
+    "test:watch": "vitest apps/web/test --pool=threads",
+    "typecheck": "tsc --noEmit",
+    "dev:api": "node --env-file-if-exists=.env scripts/python-service.mjs api",
+    "dev:web": "vite apps/web",
+    "dev:worker": "node --env-file-if-exists=.env scripts/python-service.mjs worker",
+    "build:web": "vite build apps/web"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^24.0.0",
+    "bullmq": "6.7.2",
+    "ioredis": "6.0.0",
+    "jsdom": "^31.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.1.0"
+  }
+}

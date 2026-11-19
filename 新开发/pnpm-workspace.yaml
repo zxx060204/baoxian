@@ -1,0 +1,11 @@
+packages:
+  - "apps/web"
+
+nodeLinker: hoisted
+
+allowBuilds:
+  esbuild: true
+  # BullMQ compatibility tests can use the JavaScript MessagePack decoder.
+  msgpackr-extract: false
+
+verifyDepsBeforeRun: false
